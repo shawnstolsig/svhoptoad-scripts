@@ -1,2 +1,2 @@
 # svhoptoad-scripts
-Some backend-ish scripting used by svhoptoad.com
+Some backend scripting used by svhoptoad.com
