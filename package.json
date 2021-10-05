@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/shawnstolsig/svhoptoad-scripts#readme",
   "dependencies": {
-    "google-spreadsheet": "^3.1.15"
+    "axios": "^0.22.0",
+    "google-spreadsheet": "^3.1.15",
+    "node-cron": "^3.0.0"
   }
 }
