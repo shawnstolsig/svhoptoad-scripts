@@ -1,8 +1,16 @@
 const { GoogleSpreadsheet } = require("google-spreadsheet");
-const { google_spreadsheet_id, client_email, private_key } = require("./config.json");
+const {
+    google_spreadsheet_id,
+    client_email,
+    private_key,
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioFromPhone
+} = require("./config.json");
 const spreadsheet = new GoogleSpreadsheet(google_spreadsheet_id);
 const axios = require('axios')
 const cron = require('node-cron');
+const smsClient = require('twilio')(twilioAccountSid, twilioAuthToken);
 
 async function main(){
 
@@ -62,14 +70,29 @@ async function main(){
         isSample
     }))
 
-    // add new
+    // add new rows to spreadsheet
     await locationsSheet.addRows(newLocationsConditioned)
     await blogSheet.addRows(newBlogPosts)
 
+    // send blog posts over sms
+    let smsToSend = []
+    phoneNumbers.forEach(number => {
+        newBlogPosts.forEach(({raw}) => smsToSend.push(sendSms(number, raw)))
+    })
+    await Promise.all(smsToSend)
+
     // print success message
-    console.log(`Added ${newLocationsConditioned.length} locations and ${newBlogPosts.length} blog posts.`)
+    console.log(`Added ${newLocationsConditioned.length} locations and ${newBlogPosts.length} blog posts.  ${smsToSend.length} texts sent.`)
 
 }
 
-cron.schedule('*/10 * * * *', main);
+async function sendSms(toNumber, message){
+    return smsClient.messages.create({
+            body: message,
+            from: twilioFromPhone,
+            to: `+1${toNumber}`
+        })
+}
 
+// cron.schedule('*/10 * * * *', main);
+main()
