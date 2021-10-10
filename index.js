@@ -77,7 +77,7 @@ async function main(){
     // send blog posts over sms
     let smsToSend = []
     phoneNumbers.forEach(number => {
-        newBlogPosts.forEach(({raw}) => smsToSend.push(sendSms(number, raw)))
+        newBlogPosts.forEach(({raw, title, created_at: timestamp}) => smsToSend.push(sendSms(number, raw, title, timestamp)))
     })
     await Promise.all(smsToSend)
 
@@ -86,12 +86,46 @@ async function main(){
 
 }
 
-async function sendSms(toNumber, message){
+async function sendSms(toNumber, message, title, timestamp){
+
+    // cleanup message, pull out any photos into array
+    const photoRegex = /!\[Photo\|\d+x\d+]\((.+)\)/g;
+    const photoMatches = message.match(photoRegex)
+    const strippedMsg = message.replace(photoRegex, '').trim()
+
+    // format msg with a title row
+    const sentAt = new Date(timestamp)
+    const dateOptions = { timeZone: 'America/Los_Angeles', dateStyle: 'short', timeStyle: 'short' }
+    const firstLine = `${sentAt.toLocaleString('en-US', dateOptions)}`
+    const formattedMsg = `${firstLine} PST: ${title}\n\n${strippedMsg}`
+
+    // if message contains photos
+    if(photoMatches){
+
+        // parse out photo urls from photo string
+        const photoUrls = photoMatches.map(photo => {
+            const urlRegex = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g;
+            const url = photo.match(urlRegex)
+            if(!url) return null                           // return empty element if no url found
+            return url[0].substring(0, url[0].length - 1)  // chop off trailing ')'
+        })
+
+        // send sms with media
+        return smsClient.messages.create({
+            body: formattedMsg,
+            from: twilioFromPhone,
+            to: `+1${toNumber}`,
+            mediaUrl: photoUrls
+        })
+    }
+
+    // if no media, send regular sms
     return smsClient.messages.create({
-            body: message,
+            body: formattedMsg,
             from: twilioFromPhone,
             to: `+1${toNumber}`
         })
+
 }
 
 // cron.schedule('*/10 * * * *', main);
