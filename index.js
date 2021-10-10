@@ -128,5 +128,4 @@ async function sendSms(toNumber, message, title, timestamp){
 
 }
 
-// cron.schedule('*/10 * * * *', main);
-main()
+cron.schedule('*/10 * * * *', main);
