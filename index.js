@@ -46,7 +46,7 @@ async function main(){
     for(let i = 0; i < phoneSheet.rowCount; i++){
         phoneNumbers.push(phoneSheet.getCell(i,0).value)
     }
-    phoneNumbers = [...new Set(phoneNumbers)].filter(cell => cell)
+    phoneNumbers = [...new Set(phoneNumbers)].filter(cell => cell).map(num => num.toString())
 
     // get info from Predict Wind
     const { data: { route: existingLocations } } = await axios.get('https://forecast.predictwind.com/vodafone/Hoptoad.json?_=1631335739843')
