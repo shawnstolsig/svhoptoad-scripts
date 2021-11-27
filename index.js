@@ -41,7 +41,6 @@ function findClosestLocation(timestamp, allLocations){
     }
 }
 
-
 /**
  * takes the 'raw' property from predict wind and breaks it down into text and photos array
  * @param raw
@@ -92,7 +91,6 @@ function parseRawMessage(raw){
         })
     }
 
-    // if no media, send regular sms
     return {
         text: strippedMsg,
         photos
@@ -295,20 +293,6 @@ async function main(){
 
     // print success message
     console.log(`Added ${newLocationsConditioned.length} locations and ${newBlogPosts.length} blog posts.  ${smsToSend.length} texts sent.`)
-
 }
 
-// cron.schedule('*/10 * * * *', main);
-main()
-
-// async function test(){
-//     const { data: { route: allLocations } } = await axios.get('https://forecast.predictwind.com/vodafone/Hoptoad.json?_=1631335739843')
-//     const { data: { posts: allBlogPosts } } = await axios.get(' https://forecast.predictwind.com/tracking/blog/Hoptoad?_=1631335739842')
-//     for (const {topic_id, raw, title, created_at} of allBlogPosts) {
-//
-//         const location = findClosestLocation(new Date(created_at), allLocations)
-//
-//         console.log(`post ${title} has location is ${JSON.stringify(location)}`)
-//     }
-// }
-// test()
+cron.schedule('*/10 * * * *', main);
