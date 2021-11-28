@@ -280,16 +280,22 @@ async function main(){
         isSample
     }))
 
-    // add new rows to spreadsheet
-    await locationsSheet.addRows(newLocationsConditioned)
-    await blogSheet.addRows(newBlogPosts)
+    // add new locations to spreadsheet, if there are any
+    if(newLocationsConditioned.length){
+        await locationsSheet.addRows(newLocationsConditioned)
+    }
 
-    // send blog posts over sms
+    // add new blog posts to spreadsheet, if there are any
     let smsToSend = []
-    phoneNumbers.forEach(number => {
-        newBlogPosts.forEach(({raw, title, created_at: timestamp}) => smsToSend.push(sendSms(number, raw, title, timestamp)))
-    })
-    await Promise.all(smsToSend)
+    if(newBlogPosts.length){
+        await blogSheet.addRows(newBlogPosts)
+
+        // send blog posts over sms
+        phoneNumbers.forEach(number => {
+            newBlogPosts.forEach(({raw, title, created_at: timestamp}) => smsToSend.push(sendSms(number, raw, title, timestamp)))
+        })
+        await Promise.all(smsToSend)
+    }
 
     // print success message
     console.log(`Added ${newLocationsConditioned.length} locations and ${newBlogPosts.length} blog posts.  ${smsToSend.length} texts sent.`)
