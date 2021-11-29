@@ -123,7 +123,7 @@ async function storeBlogPosts(allBlogPosts, allLocations){
         const newBlogPosts = allBlogPosts.filter(({topic_id}) => !storedBlogPostIds.includes(topic_id.toString()))
 
         // iterate through blog posts, create new blog posts if they don't exist
-        const promises = newBlogPosts.map(({topic_id, raw, title, created_at}) => {
+        const promises = newBlogPosts.map(({topic_id, raw, title, created_at, cooked}) => {
                 const { text, photos } = parseRawMessage(raw)
                 const id = topic_id.toString()
 
@@ -137,6 +137,7 @@ async function storeBlogPosts(allBlogPosts, allLocations){
                     date: created_at,
                     type: 'Satellite Update',
                     content: text,
+                    htmlContent: cooked,
                     location: location ? location : null,
                 }
 
