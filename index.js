@@ -14,6 +14,15 @@ const cron = require('node-cron');
 const smsClient = require('twilio')(twilioAccountSid, twilioAuthToken);
 const sanityClient = require('@sanity/client')
 
+// init sanity
+const sanity = sanityClient({
+    projectId: "sq8huxry",
+    dataset: "production",
+    apiVersion: "v2021-11-23",
+    token: sanityToken,
+    useCdn: false
+})
+
 /**
  * finds a gps fix that's close enough to the blog post, returns this location for storage with the post and photos
  * @param timestamp
@@ -106,15 +115,6 @@ function parseRawMessage(raw){
 async function storeBlogPosts(allBlogPosts, allLocations){
     return new Promise(async (resolve, reject) => {
 
-        // init sanity
-        const sanity = sanityClient({
-            projectId: "sq8huxry",
-            dataset: "production",
-            apiVersion: "v2021-11-23",
-            token: sanityToken,
-            useCdn: false
-        })
-
         // diff posts in sanity vs posts in predict wind, filter down to just new posts (minimizes sanity API calls)
         const fetchedBlogPosts = await sanity.fetch(`
         *[_type == 'post']{_id}
@@ -123,8 +123,12 @@ async function storeBlogPosts(allBlogPosts, allLocations){
         const newBlogPosts = allBlogPosts.filter(({topic_id}) => !storedBlogPostIds.includes(topic_id.toString()))
 
         // iterate through blog posts, create new blog posts if they don't exist
-        const promises = newBlogPosts.map(({topic_id, raw, title, created_at, cooked}) => {
-                const { text, photos } = parseRawMessage(raw)
+        const promises = newBlogPosts.map(async ({topic_id, raw, title, created_at, cooked}) => {
+
+            // add 100 ms delay to prevent overloading Sanity api
+            await new Promise(res => setTimeout(res, 100));
+
+            const { text, photos } = parseRawMessage(raw)
                 const id = topic_id.toString()
 
                 const location = findClosestLocation(new Date(created_at), allLocations)
@@ -217,6 +221,113 @@ async function sendSms(toNumber, message, title, timestamp){
 }
 
 /**
+ * Fetches locations and blog posts from PredictWind
+ */
+function fetchPredictWindData(){
+    return Promise.all([
+            axios.get('https://forecast.predictwind.com/vodafone/Hoptoad.json?_=1631335739843'),
+            axios.get(' https://forecast.predictwind.com/tracking/blog/Hoptoad?_=1631335739842')
+        ])
+}
+
+/**
+ * A sepearate cron that will check to see if posts were updated, and then update Sanity accordingly
+ **/
+async function updateSanityPosts() {
+
+    // diff posts in sanity vs posts in predict wind
+    const storedPosts = await sanity.fetch(`
+            *[_type == 'post']
+        `)
+
+    // get info from Predict Wind
+    const [
+        { data: { route: pwLocations } },
+        { data: { posts: pwBlogPosts } }
+    ] = await fetchPredictWindData()
+
+    // find posts to update by comparing: PW.title + SAN.title and PW.cooked + SAN.htmlContent
+    const updates = pwBlogPosts.filter(({topic_id, title, cooked}) => {
+
+        // find stored version from Sanity
+        const stored = storedPosts.find(({_id}) => _id === topic_id.toString())
+
+        // if post isn't stored, omit from updates
+        if(!stored) {
+            console.log(`couldn't find ${title}, omitting`)
+            return false;
+        }
+
+        // if title and html content are the same, omit from updates
+        if(cooked === stored.htmlContent && title === stored.title) {
+            console.log(`post ${title} has title match and content match, omitting`)
+            return false;
+        }
+
+        // if passed the first two tests, then this is a post to update
+        console.log(`----> post ${title} has been previously stored and has been updated, go time!`)
+        return true
+
+    })
+
+    // delete existing photos
+    await Promise.all(
+        updates.map(({topic_id}) => sanity.delete({ query: `*[_type == 'photo' && post._ref == "${topic_id}"]` }))
+    )
+
+    // delete existing versions
+    const updateIds = updates.map(({topic_id}) => topic_id.toString())
+    await sanity.delete({ query: `*[_type == 'post' && _id in ${JSON.stringify(updateIds)}]` })
+
+    // recreate blog posts
+    await Promise.all(
+        updates.map(async ({topic_id, raw, title, created_at, cooked}) => {
+
+            // add 100 ms delay to prevent overloading Sanity api
+            await new Promise(res => setTimeout(res, 100));
+
+            const { text, photos } = parseRawMessage(raw)
+            const id = topic_id.toString()
+
+            const location = findClosestLocation(new Date(created_at), pwLocations)
+
+            const doc = {
+                _type: 'post',
+                _id: id,
+                id,
+                title,
+                date: created_at,
+                type: 'Satellite Update',
+                content: text,
+                htmlContent: cooked,
+                location: location ? location : null,
+            }
+
+            return sanity.createIfNotExists(doc).then(async postRes => {
+                console.log(`Post ${postRes._id} was updated.`)
+
+                for(const photo of photos){
+                    const doc = {
+                        _type: 'photo',
+                        _id: photo.id,
+                        post: {
+                            _type: 'reference',
+                            _ref: id
+                        },
+                        location: location ? location : null,
+                        ...photo
+                    }
+                    const photoRes = await sanity.createIfNotExists(doc)
+                    console.log(`Photo ${photoRes._id} was created (or was already present).`)
+                }
+            })
+        })
+    )
+
+    console.log(`Blog posts updated: ${updates.map(el => el.topic_id)}`)
+}
+
+/**
  * uses Predict Wind API to pull blog posts and photos, storing them to Sanity and Google Sheets,
  * and texting out new blog posts via Twilio
  **/
@@ -257,8 +368,10 @@ async function main(){
     phoneNumbers = [...new Set(phoneNumbers)].filter(cell => cell).map(num => num.toString())
 
     // get info from Predict Wind
-    const { data: { route: existingLocations } } = await axios.get('https://forecast.predictwind.com/vodafone/Hoptoad.json?_=1631335739843')
-    const { data: { posts: existingBlogPosts } } = await axios.get(' https://forecast.predictwind.com/tracking/blog/Hoptoad?_=1631335739842')
+    const [
+        { data: { route: existingLocations } },
+        { data: { posts: existingBlogPosts } }
+    ] = await fetchPredictWindData()
 
     // stores new blog posts and photos to sanity
     await storeBlogPosts(existingBlogPosts, existingLocations)
@@ -303,3 +416,7 @@ async function main(){
 }
 
 cron.schedule('*/10 * * * *', main);
+cron.schedule('*/60 * * * *', updateSanityPosts);
+
+// updateSanityPosts();
+// main()
