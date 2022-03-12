@@ -189,7 +189,12 @@ async function sendSms(toNumber, message, title, timestamp){
     const sentAt = new Date(timestamp)
     const dateOptions = { timeZone: 'America/Los_Angeles', dateStyle: 'short', timeStyle: 'short' }
     const firstLine = `${sentAt.toLocaleString('en-US', dateOptions)}`
-    const formattedMsg = `${firstLine} PST: ${title}\n\n${strippedMsg}`
+    let formattedMsg = `${firstLine} PST: ${title}\n\n${strippedMsg}`
+
+    // handle messages longer than Twilio's 1600 character limit
+    if(formattedMsg.length > 1600){
+        formattedMsg = `${firstLine} PST: ${title}\n\nRead it here: www.svhoptoad.com/blog`
+    }
 
     // if message contains photos
     if(photoMatches){
