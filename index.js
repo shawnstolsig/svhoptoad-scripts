@@ -363,15 +363,6 @@ async function main(){
     }
     blogIds = [...new Set(blogIds)].filter(cell => cell)
 
-    // get all phone numbers
-    const phoneSheet = await spreadsheet.sheetsByTitle['SMS Subscribers']
-    await phoneSheet.loadCells('A:A')
-    let phoneNumbers = []
-    for(let i = 0; i < phoneSheet.rowCount; i++){
-        phoneNumbers.push(phoneSheet.getCell(i,0).value)
-    }
-    phoneNumbers = [...new Set(phoneNumbers)].filter(cell => cell).map(num => num.toString())
-
     // get info from Predict Wind
     const [
         { data: { route: existingLocations } },
@@ -404,20 +395,29 @@ async function main(){
         await locationsSheet.addRows(newLocationsConditioned)
     }
 
+    // get all phone numbers
+    // const phoneSheet = await spreadsheet.sheetsByTitle['SMS Subscribers']
+    // await phoneSheet.loadCells('A:A')
+    // let phoneNumbers = []
+    // for(let i = 0; i < phoneSheet.rowCount; i++){
+    //     phoneNumbers.push(phoneSheet.getCell(i,0).value)
+    // }
+    // phoneNumbers = [...new Set(phoneNumbers)].filter(cell => cell).map(num => num.toString())
+
     // add new blog posts to spreadsheet, if there are any
-    let smsToSend = []
+    // let smsToSend = []
     if(newBlogPosts.length){
         await blogSheet.addRows(newBlogPosts)
 
         // send blog posts over sms
-        phoneNumbers.forEach(number => {
-            newBlogPosts.forEach(({raw, title, created_at: timestamp}) => smsToSend.push(sendSms(number, raw, title, timestamp)))
-        })
-        await Promise.all(smsToSend)
+        // phoneNumbers.forEach(number => {
+        //     newBlogPosts.forEach(({raw, title, created_at: timestamp}) => smsToSend.push(sendSms(number, raw, title, timestamp)))
+        // })
+        // await Promise.all(smsToSend)
     }
 
     // print success message
-    console.log(`Added ${newLocationsConditioned.length} locations and ${newBlogPosts.length} blog posts.  ${smsToSend.length} texts sent.`)
+    console.log(`Added ${newLocationsConditioned.length} locations and ${newBlogPosts.length} blog posts.  SMS disabled.`)
 }
 
 cron.schedule('*/10 * * * *', main);
