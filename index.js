@@ -230,8 +230,8 @@ async function sendSms(toNumber, message, title, timestamp) {
  */
 function fetchPredictWindData() {
     return Promise.all([
-        axios.get('https://forecast.predictwind.com/vodafone/Hoptoad.json?_=1631335739843'),
-        axios.get(' https://forecast.predictwind.com/tracking/blog/Hoptoad?_=1631335739842')
+        axios.get('https://forecast.predictwind.com/tracking/data/Hoptoad.json'),
+        axios.get('https://forecast.predictwind.com/tracking/blog/Hoptoad?_=1752196312765')
     ])
 }
 
@@ -425,4 +425,4 @@ cron.schedule('*/10 * * * *', main);
 cron.schedule('*/60 * * * *', updateSanityPosts);
 
 // updateSanityPosts();
-// main()
+main()
