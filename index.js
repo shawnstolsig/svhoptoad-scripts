@@ -425,4 +425,4 @@ cron.schedule('*/10 * * * *', main);
 cron.schedule('*/60 * * * *', updateSanityPosts);
 
 // updateSanityPosts();
-main()
+// main()
